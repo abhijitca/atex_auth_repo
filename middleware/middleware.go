@@ -58,7 +58,20 @@ func validateToken(token string) bool {
 	return subtle.ConstantTimeCompare([]byte(token), []byte(expected)) == 1
 }
 
-func respond403(w http.ResponseWriter) {
+func respond403(w http.ResponseWriter, r *http.Request) {
+	sourceIP := r.RemoteAddr // Extracts the source IP from the request
+
+	// Log the source IP in a structured format
+	logEntry := map[string]string{
+		"error":     "forbidden",
+		"message":   "invalid or missing credentials",
+		"source_ip": sourceIP, // Log the source IP
+	}
+	logData, err := json.Marshal(logEntry) // Convert the log entry to JSON
+	if err == nil {
+		log.Println(string(logData)) // Log it
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusForbidden)
 	_ = json.NewEncoder(w).Encode(map[string]string{
