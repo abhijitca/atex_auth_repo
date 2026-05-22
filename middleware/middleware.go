@@ -2,12 +2,14 @@ package middleware
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/golang-jwt/jwt"
 )
 
 type ctxKey string
@@ -48,14 +50,36 @@ func AuthMiddleware(next http.Handler) http.Handler {
 }
 
 func validateToken(token string) bool {
-	expected := os.Getenv("AUTH_TOKEN")
-	if expected == "" {
+	expectedSigningKey := []byte(os.Getenv("SIGNING_KEY"))
+	if len(expectedSigningKey) == 0 {
 		return false
 	}
-	if len(token) != len(expected) {
+
+	// Parse the token
+	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		return expectedSigningKey, nil
+	})
+
+	if err != nil {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(token), []byte(expected)) == 1
+
+	if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok && parsedToken.Valid {
+		// Check expiration
+		if exp, ok := claims["exp"].(float64); ok {
+			if int64(exp) < time.Now().Unix() {
+				return false
+			}
+		}
+
+		// Check if user is an admin
+		if role, ok := claims["role"].(string); !ok || role != "admin" {
+			return false
+		}
+		return true
+	}
+
+	return false
 }
 
 func respond403(w http.ResponseWriter, r *http.Request) {
