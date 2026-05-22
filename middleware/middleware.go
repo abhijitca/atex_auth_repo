@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -15,24 +16,28 @@ func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		if auth == "" {
+			logIP(r)
 			respond403(w)
 			return
 		}
 
 		parts := strings.SplitN(auth, " ", 2)
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			logIP(r)
 			respond403(w)
 			return
 		}
 		token := parts[1]
 
 		if !validateToken(token) {
+			logIP(r)
 			respond403(w)
 			return
 		}
 
 		clientID := r.Header.Get("X-Client-ID")
 		if clientID == "" {
+			logIP(r)
 			respond403(w)
 			return
 		}
@@ -60,6 +65,16 @@ func respond403(w http.ResponseWriter) {
 		"error":   "forbidden",
 		"message": "invalid or missing credentials",
 	})
+}
+
+func logIP(r *http.Request) {
+	ipInfo := map[string]string{
+		"sourceIP": r.RemoteAddr,
+	}
+	logData, err := json.Marshal(ipInfo)
+	if err == nil {
+		log.Println(string(logData))
+	}
 }
 
 // ClientIDFromContext extracts the client ID stored by the middleware.
